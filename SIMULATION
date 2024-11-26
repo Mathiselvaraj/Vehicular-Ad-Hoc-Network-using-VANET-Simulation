@@ -1,0 +1,196 @@
+import random
+from twilio.rest import Client
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from PIL import Image
+import os
+import pygame
+import time
+import _thread
+
+lock_ = 0
+
+####path_plotter1 = [(5.4, 0.7), (5.3, 1.11), (5.2, 1.45), (5.05, 1.80), (4.92, 2.22), (4.85, 2.32)]
+####path_plotter2 = [(4.48, 3.17), (4.47, 3.06), (4.5, 2.91), (4.40, 2.82), (4.37, 2.75), (4.31, 2.60)]
+
+#vehicle_position1 = [5.4, 0.7]
+#vehicle_position2 = [4.48, 3.17]
+
+animate_delay = 1
+
+path_plotter1 = [(5.4, 0.2), (5.2, 0.5), (4.9, 1.12), (4.7, 1.40), (4.5, 1.70), (4.3, 2.00)]
+path_plotter2 = [(4.48, 3.17), (4.47, 3.06), (4.5, 2.91), (4.40, 2.82), (4.37, 2.75), (4.31, 2.60)]
+crash_plotter = [4.5, 4.5 + 1.0, 2.5, 2.5 + 0.5]
+
+scale_matrix = [0.15, 0.05]
+
+vehicle_position1 = path_plotter1[0]
+vehicle_position2 = path_plotter2[0]
+
+vehicle_width1, vehicle_height1 = 2.0, 1.5
+vehicle_width2, vehicle_height2 = 0.5, 0.3
+
+V1x1, V1y1, V1x2, V1y2 = vehicle_position1[0], vehicle_position1[0] + vehicle_width1, vehicle_position1[1], \
+                         vehicle_position1[1] + vehicle_height1
+V2x1, V2y1, V2x2, V2y2 = vehicle_position2[0], vehicle_position2[0] + vehicle_width2, vehicle_position2[1], \
+                         vehicle_position2[1] + vehicle_height2
+
+# Simulation duration
+NUM_FRAMES = 300
+
+# Placeholder for accident status
+accident_detected = False
+
+# Twilio credentials (replace with your Twilio account SID and Auth token)
+TWILIO_SID = "ACc7a35eb00930ad4e1304d1820867b51e"
+TWILIO_AUTH_TOKEN = "c35626dfaf6ca6f1dad22981a997ccc4"
+TWILIO_PHONE_NUMBER = "+12568040435"
+EMERGENCY_PHONE_NUMBER = ["+919342665959"]  # Emergency contact number
+
+# Accident Sound
+pygame.mixer.init()
+try:
+    #CRASH_SOUND = pygame.mixer.Sound("C:/Users/User/Documents/3RD YR MP 5TH SEM/alligator3.wav")
+    #CRASH_SOUND = pygame.mixer.Sound("alligator3.wav")
+    CRASH_SOUND = pygame.mixer.Sound("crash_sound.wav")
+    TRAFFIC_SOUND = pygame.mixer.Sound("traffic.wav")
+
+except pygame.error:
+    print("Error: Sound file not found. Please check the path and try again.")
+    CRASH_SOUND = None  # Set to None if the sound file is not found
+
+def send_sms_alert():
+    '''client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+    message = client.messages.create(
+        body="Accident detected! Immediate assistance required.",
+        from_=TWILIO_PHONE_NUMBER,
+        to=EMERGENCY_PHONE_NUMBER
+    )'''
+    #print(f"Alert sent: {message.sid}")
+    print(f"Message Alert sent to: {EMERGENCY_PHONE_NUMBER}")
+
+def plotter_(dummy, *args):
+    global V1x1, V1y1, V1x2, V1y2, V2x1, V2y1, V2x2, V2y2, accident_detected
+    width1, height1 = vehicle_width1, vehicle_height1
+    width2, height2 = vehicle_width2, vehicle_height2
+    cntr = 0
+    time.sleep(3)
+    for (x1, y1), (x2, y2) in zip(path_plotter1, path_plotter2):
+        V1x1 = x1
+        V1y1 = x1 + width1
+        V1x2 = y1
+        V1y2 = y1 + height1
+        V2x1 = x2
+        V2y1 = x2 + width2
+        V2x2 = y2
+        V2y2 = y2 + height2
+        width1 -= scale_matrix[0]
+        height1 -= scale_matrix[0]
+        width2 += scale_matrix[1]
+        height2 += scale_matrix[1]
+        cntr += 1
+        if cntr > 2:
+            TRAFFIC_SOUND.stop()
+            CRASH_SOUND.play()
+        if cntr > 5:
+            accident_detected = 1
+        time.sleep(animate_delay)
+    time.sleep(2)
+    print("Accident Detected: Sending SMS Alert!")
+    send_sms_alert()
+    CRASH_SOUND.stop()
+
+# Matplotlib Animation
+def matplotlib_visualization():
+    global accident_detected, lock_
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 5)
+    ax.axis("off")
+    TRAFFIC_SOUND.play()
+    #road_image_path = "C:/Users/User/Pictures/road.png"
+    #vehicle_img_normal_path = "C:/Users/User/Pictures/car.png"
+    #vehicle_img_accident_path = "C:/Users/User/Pictures/crash.png"
+
+    #road_image_path = "road.png"
+    road_image_path = "main_road1.png"
+    #vehicle_img_normal_path = "car.png"
+    vehicle_img1_path = "car3_cut.png"
+    vehicle_img2_path = "car4_cut.png"
+    #vehicle_img_normal_path = "car2.png"
+    vehicle_img_accident_path = "crash2_cut.png"
+
+    try:
+        road_img = Image.open(road_image_path)
+    except FileNotFoundError:
+        print(f"Error: Road image file not found at {road_image_path}. Please check the path and try again.")
+        return
+
+    try:
+        #vehicle_img_normal = Image.open(vehicle_img_normal_path)
+        vehicle_img1 = Image.open(vehicle_img1_path)
+    except FileNotFoundError:
+        print(f"Error: Normal vehicle image file not found at {vehicle_img1_path}. Please check the path and try again.")
+        return
+
+    try:
+        #vehicle_img_accident = Image.open(vehicle_img_accident_path)
+        vehicle_img2 = Image.open(vehicle_img2_path)
+    except FileNotFoundError:
+        print(f"Error: Accident vehicle image file not found at {vehicle_img2_path}. Please check the path and try again.")
+        return
+
+    try:
+        vehicle_img_accident = Image.open(vehicle_img_accident_path)
+    except FileNotFoundError:
+        print(f"Error: Accident vehicle image file not found at {vehicle_img_accident_path}. Please check the path and try again.")
+        return
+
+    ax.imshow(road_img, extent=[0, 10, 0, 5], aspect='auto')
+    #TRAFFIC_SOUND.play()
+    #vehicle_position1 = [5.2, 0.5]
+    #vehicle_position2 = [4.92, 2.5]
+    '''vehicle_position1 = [5.4, 0.7]
+    vehicle_position2 = [4.48, 3.17]
+    vehicle_width1, vehicle_height1 = 2.0, 1.5
+    vehicle_width2, vehicle_height2 = 0.5, 0.3'''
+    '''vehicle_plot1 = ax.imshow(vehicle_img1, extent=[
+        vehicle_position1[0], vehicle_position1[0] + vehicle_width1,
+        vehicle_position1[1], vehicle_position1[1] + vehicle_height1
+    ],aspect='auto')
+    vehicle_plot2 = ax.imshow(vehicle_img2, extent=[
+        vehicle_position2[0], vehicle_position2[0] + vehicle_width2,
+        vehicle_position2[1], vehicle_position2[1] + vehicle_height2
+    ],aspect='auto')'''
+    vehicle_plot1 = ax.imshow(vehicle_img1, extent=[V1x1, V1y1, V1x2, V1y2], aspect='auto')
+    vehicle_plot2 = ax.imshow(vehicle_img2, extent=[V2x1, V2y1, V2x2, V2y2], aspect='auto')
+    _thread.start_new_thread(plotter_, (0, 0))
+
+    def update(frame):
+        global accident_detected, lock_
+        crash_plot = 0
+        vehicle_plot1.set_extent([V1x1, V1y1, V1x2, V1y2])# aspect='auto')
+        vehicle_plot2.set_extent([V2x1, V2y1, V2x2, V2y2])# aspect='auto')
+        if accident_detected and not lock_:
+            crash_plot = ax.imshow(vehicle_img_accident, extent=crash_plotter)#, aspect='auto')
+            lock_ = 1
+        if accident_detected and lock_:
+            return vehicle_plot1, vehicle_plot2, crash_plot
+        else:
+            return vehicle_plot1, vehicle_plot2
+
+    ani = FuncAnimation(fig, update, frames=NUM_FRAMES, interval=50, repeat=False)
+    #ani = FuncAnimation(fig, update, frames=NUM_FRAMES, interval=50, repeat=True)
+    plt.show()
+
+# Combined Simulation
+def main():
+    matplotlib_visualization()
+
+if __name__ == "__main__":
+    main()
+
+
+
+
